@@ -1,0 +1,26 @@
+__pycache__
+.idea
+.DS_Store
+*.egg-info
+build
+.venv
+.vscode
+
+# data
+data
+datasets
+checkpoints
+out
+wandb
+events.out.tfevents*
+
+tests/reference_models
+
+*.so
+
+mds/*
+mds/*.*
+lightning*/*
+*.csv
+*.xlsx
+*.joblib
