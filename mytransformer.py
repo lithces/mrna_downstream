@@ -38,14 +38,14 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 class TransformerModel(pl.LightningModule):
-    def __init__(self, vocab_sz, output_dim, hidden_dim, num_layers, num_heads, dropout_rate, itm_dim):
+    def __init__(self, vocab_sz, output_dim, hidden_dim, num_layers, num_heads, dropout_rate, itm_dim, comments=""):
         super(TransformerModel, self).__init__()
         self.save_hyperparameters()
         self.embedding = nn.Embedding(vocab_sz, hidden_dim)
         self.pos_encoder = PositionalEncoding(hidden_dim, dropout_rate)
         encoder_layers = TransformerEncoderLayer(hidden_dim, num_heads, itm_dim, dropout_rate)
         self.transformer_encoder = TransformerEncoder(encoder_layers, num_layers)
-
+        self.comments = comments
         # self.linear = nn.Linear(hidden_dim, output_dim)
         self.mlp = nn.Linear(hidden_dim, output_dim)
         # self.mlp = nn.Sequential(
