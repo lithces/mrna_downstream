@@ -159,7 +159,7 @@ class MambaSingleOutputModelWithEmbeddingInput(pl.LightningModule, GenerationMix
             initializer_cfg=None,
             fused_add_norm=fused_add_norm,
             residual_in_fp32=residual_in_fp32,
-            ignore_input_ids=ignore_input_ids
+            ignore_input_ids=ignore_input_ids,
             **factory_kwargs,
         )
         # self.linear = nn.Linear(hidden_dim, output_dim)
