@@ -30,3 +30,11 @@ mds*
 lightning*
 training_log*
 training_log*/*
+
+
+*.bz2
+*.tar.*
+*.tar
+*.gz
+*.zip
+*.7z

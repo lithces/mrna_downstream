@@ -127,7 +127,7 @@ class MambaSingleOutputModelWithEmbeddingInput(pl.LightningModule, GenerationMix
 
     def __init__(
         self,
-        vocab_sz, output_dim, hidden_dim, num_layers, input_emb_dim, dropout_rate = None, ignore_ids = False, comments="", lr=1e-3, opt="Adam"
+        vocab_sz, output_dim, hidden_dim, num_layers, input_emb_dim, dropout_rate = None, ignore_input_ids = False, comments="", lr=1e-3, opt="Adam"
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
@@ -147,7 +147,7 @@ class MambaSingleOutputModelWithEmbeddingInput(pl.LightningModule, GenerationMix
         self.opt = opt
         self.comments = comments
         self.input_emb_dim = input_emb_dim
-        self.ignore_ids = ignore_ids
+        self.ignore_input_ids = ignore_input_ids
         # if vocab_size % pad_vocab_size_multiple != 0:
         #     vocab_size += pad_vocab_size_multiple - (vocab_size % pad_vocab_size_multiple)
         self.backbone = MixerModelWithEmbeddingInput(
@@ -159,6 +159,7 @@ class MambaSingleOutputModelWithEmbeddingInput(pl.LightningModule, GenerationMix
             initializer_cfg=None,
             fused_add_norm=fused_add_norm,
             residual_in_fp32=residual_in_fp32,
+            ignore_input_ids=ignore_input_ids
             **factory_kwargs,
         )
         # self.linear = nn.Linear(hidden_dim, output_dim)
