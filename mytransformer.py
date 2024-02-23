@@ -71,7 +71,7 @@ class TransformerModel(pl.LightningModule):
         output = self.mlp(output)
         output = output.transpose(0,1)[:,:,0]
         keep_ind = (~src_key_padding_mask).to(torch.float)
-        output = (output*keep_ind).sum(dim=-1) / keep_ind.sum(dim=-1)
+        output = (output*keep_ind).sum(dim=-1) / keep_ind.sum(dim=-1) # average over time
 
         return output
     

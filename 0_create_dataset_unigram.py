@@ -91,7 +91,7 @@ idx_train, idx_te = train_test_split(idx, test_size=1000, random_state=42)
 idx_tr, idx_va = train_test_split(idx_train, test_size=1000, random_state=42)
 np.savez_compressed('idx_tr_va_te.npz', idx_tr=idx_tr, idx_va=idx_va, idx_te=idx_te)
 # %%
-vocab_size=4096
+vocab_size=1024
 fn_tok = f"../mrna_llm/lit-gpt/tok_unigram_{vocab_size}.json"
 offset = 0x4e00
 unk = '<unk>'

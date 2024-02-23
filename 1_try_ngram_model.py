@@ -21,7 +21,7 @@ class TokenTensorDataset(LocalDataset):
         L = len(dat)
         return ' '.join([str(x) for x in dat.tolist()]), y
 
-myroot='mds_unigram_4096'
+myroot='mds_unigram_1024'
 ds_tr = TokenTensorDataset(f'{myroot}/tr')
 dl_tr = DataLoader(ds_tr, batch_size=len(ds_tr))
 
@@ -69,7 +69,9 @@ X_te1 = scaler.transform(X_te)
 # %%
 from sklearn.metrics import r2_score
 from sklearn import linear_model
-for alpha in np.arange(10000, 100000, 2000):
+# for alpha in np.arange(10000, 100000, 2000):
+for alpha in np.arange(100, 10000, 500):
+
     clf = linear_model.Ridge(alpha=alpha)
     clf.fit(X_tr1, y_tr)
     y_va_pred = clf.predict(X_va1)

@@ -27,3 +27,6 @@ lightning*/*
 
 
 mds*
+lightning*
+training_log*
+training_log*/*

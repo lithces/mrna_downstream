@@ -1,27 +1,17 @@
 #%%
-vocab_size = 1024
-suffix = f"unigram_{vocab_size}"
-# suffix = f"wordpiece_{vocab_size}"
-
-fn_tok = f"../mrna_llm/lit-gpt/tok_{suffix}.json"
-ctx = 2048
-
-from tokenizers import Tokenizer, decoders, models, normalizers, pre_tokenizers, trainers
-# tokenizer = Tokenizer(models.WordPiece(max_input_chars_per_word=20000))
-from transformers import PreTrainedTokenizerFast, AutoTokenizer, WordpieceTokenizer
-tok = Tokenizer.from_file(fn_tok)
-
-#%%
-vocab_sz = tok.get_vocab_size()+1
-padding_idx = tok.get_vocab_size()
+vocab_sz = 140
+padding_idx = 139
 output_dim = 1
-hidden_dim = 128
+hidden_dim = 64
 num_layers = 3
-num_heads = 8
-dropout_rate = 0.1
-itm_dim = 128
 batch_size = 256
 max_epochs = 200
+dropout = None
+ctx_size = 4096 
+comments = f"ctx_size: {ctx_size}" # default 4096
+
+lr = 1e-4 # default 1e-3
+opt = 'AdamW' # default Adam
 
 import lightning as L
 from torch.utils.data import DataLoader
@@ -45,7 +35,7 @@ class OneSeqDataset(LocalDataset):
         }
 
 class BatchSeqDataset(LocalDataset):
-    def __init__(self, local, ctx_size=ctx):
+    def __init__(self, local, ctx_size):
         '''
         resulting tensors are padded to ctx_size
         '''
@@ -59,7 +49,7 @@ class BatchSeqDataset(LocalDataset):
         L = len(res_id0)
         # print(L, y)
         pos1 = min(L, self.ctx_size)
-        res_id = np.concatenate( (res_id0[:pos1], np.array([padding_idx]*(self.ctx_size - pos1), dtype=np.int32)))
+        res_id = np.concatenate( (res_id0[:pos1], np.array([padding_idx]*(self.ctx_size - pos1), dtype=np.uint8)))
         
         mask = np.concatenate( (np.array([0]*pos1, dtype=np.bool8), np.array([1]*(self.ctx_size - pos1),  dtype=np.bool8)))
         return {'L': L \
@@ -70,10 +60,10 @@ class BatchSeqDataset(LocalDataset):
 
 #%%
 import tqdm
-ds_train = BatchSeqDataset(f'./mds_{suffix}/tr', ctx_size=ctx)
-ds_val = BatchSeqDataset(f'./mds_{suffix}/te', ctx_size=ctx)
+ds_train = BatchSeqDataset('./mds/tr', ctx_size=ctx_size)
+ds_val = BatchSeqDataset('./mds/te', ctx_size=ctx_size)
 
-# dl_debug = DataLoader(ds_train, shuffle=True, batch_size=256)
+dl_debug = DataLoader(ds_train, shuffle=True, batch_size=256)
 
 # for di in tqdm.tqdm(dl_debug):
 #     # print(di['ids'].dtype)
@@ -86,7 +76,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 import pytorch_lightning as pl
 
-from mytransformer import *
+from mymamba import *
 #%%
 
 
@@ -96,15 +86,10 @@ from mytransformer import *
 dl_train = DataLoader(ds_train, shuffle=True, batch_size=batch_size)
 dl_val = DataLoader(ds_val, shuffle=False, batch_size=batch_size)
 
+# from lightning.pytorch.loggers import TensorBoardLogger
+# logger = TensorBoardLogger(save_dir='training_log_mamba')
 
-model = TransformerModel(vocab_sz, output_dim, hidden_dim, num_layers, num_heads, dropout_rate, itm_dim,\
-                        comments=f'{suffix}_ctx_{ctx}')
-
-from lightning.pytorch.loggers import TensorBoardLogger
-
-logger = TensorBoardLogger(save_dir='training_log_tf', name=f'{suffix}_ctx_{ctx}')
-trainer = pl.Trainer(max_epochs=max_epochs, log_every_n_steps=5, val_check_interval=0.25, logger=logger)
+model = MambaSingleOutputModel(vocab_sz, output_dim, hidden_dim, num_layers, dropout_rate=dropout, comments=comments, lr=lr, opt=opt)
+trainer = pl.Trainer(max_epochs=max_epochs, log_every_n_steps=5, val_check_interval=0.25,)
 trainer.fit(model, dl_train, dl_val)
-
-# trainer.fit(model, dl_train, dl_val, ckpt_path="training_log_tf/wordpiece_16384_ctx_2048/version_0/checkpoints/epoch=20-step=924.ckpt")
 # %%

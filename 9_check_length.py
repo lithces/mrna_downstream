@@ -1,5 +1,5 @@
 #%%
-suffix = 'mds_unigram_4096'
+suffix = 'mds_unigram_1024'
 ds_root = f'/home/lithtp/sanofi/mrna/mrna_downstream/{suffix}/'
 
 
