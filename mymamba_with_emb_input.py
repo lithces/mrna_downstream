@@ -67,7 +67,7 @@ class MixerModelWithEmbeddingInput(MixerModel):
 
 
     def forward(self, input_ids, embs, inference_params=None):
-        if not self.ignore_ids:
+        if not self.ignore_input_ids:
             hidden_states = self.embedding(input_ids) + embs
         else:
             hidden_states = embs
