@@ -48,49 +48,23 @@ class MixerModelWithEmbeddingInput(MixerModel):
         dtype=None,
         ignore_input_ids=False
     ) -> None:
-        factory_kwargs = {"device": device, "dtype": dtype}
-        self.residual_in_fp32 = residual_in_fp32
-        if not ignore_input_ids:
-            self.embedding = nn.Embedding(vocab_size, d_model, **factory_kwargs)
+        super().__init__(d_model,
+            n_layer,
+            vocab_size,
+            ssm_cfg,
+            norm_epsilon,
+            rms_norm,
+            initializer_cfg,
+            fused_add_norm,
+            residual_in_fp32,
+            device,
+            dtype,
+        )
 
         self.ignore_input_ids = ignore_input_ids            
-        # We change the order of residual and layer norm:
-        # Instead of LN -> Attn / MLP -> Add, we do:
-        # Add -> LN -> Attn / MLP / Mixer, returning both the residual branch (output of Add) and
-        # the main branch (output of MLP / Mixer). The model definition is unchanged.
-        # This is for performance reason: we can fuse add + layer_norm.
-        self.fused_add_norm = fused_add_norm
-        if self.fused_add_norm:
-            if layer_norm_fn is None or rms_norm_fn is None:
-                raise ImportError("Failed to import Triton LayerNorm / RMSNorm kernels")
+        if ignore_input_ids:
+            del self.embedding
 
-        self.layers = nn.ModuleList(
-            [
-                create_block(
-                    d_model,
-                    ssm_cfg=ssm_cfg,
-                    norm_epsilon=norm_epsilon,
-                    rms_norm=rms_norm,
-                    residual_in_fp32=residual_in_fp32,
-                    fused_add_norm=fused_add_norm,
-                    layer_idx=i,
-                    **factory_kwargs,
-                )
-                for i in range(n_layer)
-            ]
-        )
-
-        self.norm_f = (nn.LayerNorm if not rms_norm else RMSNorm)(
-            d_model, eps=norm_epsilon, **factory_kwargs
-        )
-
-        self.apply(
-            partial(
-                _init_weights,
-                n_layer=n_layer,
-                **(initializer_cfg if initializer_cfg is not None else {}),
-            )
-        )
 
     def forward(self, input_ids, embs, inference_params=None):
         if not self.ignore_ids:
