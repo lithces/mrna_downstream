@@ -125,7 +125,8 @@ checkpoint_callback = ModelCheckpoint(monitor="val_loss", \
     save_top_k=3, \
     mode="min",)
 
-model = MambaSingleOutputModelWithEmbeddingInput(vocab_sz, output_dim, hidden_dim, num_layers, input_emb_dim, ignore_input_ids=ignore_input_ids, dropout_rate=dropout, comments=comments, lr=lr, opt=opt)
+model = MambaSingleOutputModelWithEmbeddingInput(vocab_sz, output_dim, hidden_dim, num_layers, input_emb_dim, ignore_input_ids=ignore_input_ids, \
+        dropout_rate=dropout, comments=comments, lr=lr, opt=opt)
 trainer = pl.Trainer(max_epochs=max_epochs, log_every_n_steps=5, val_check_interval=0.25, callbacks=[checkpoint_callback])
 # trainer = pl.Trainer(max_epochs=max_epochs, log_every_n_steps=5, val_check_interval=0.25)
 

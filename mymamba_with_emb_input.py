@@ -127,7 +127,7 @@ class MambaSingleOutputModelWithEmbeddingInput(pl.LightningModule, GenerationMix
 
     def __init__(
         self,
-        vocab_sz, output_dim, hidden_dim, num_layers, input_emb_dim, dropout_rate = None, ignore_input_ids = False, comments="", lr=1e-3, opt="Adam"
+        vocab_sz, output_dim, hidden_dim, num_layers, input_emb_dim, ignore_input_ids = False, dropout_rate = None,  comments="", lr=1e-3, opt="Adam"
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
