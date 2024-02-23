@@ -49,7 +49,6 @@ class MixerModelWithEmbeddingInput(MixerModel):
         ignore_input_ids=False
     ) -> None:
         factory_kwargs = {"device": device, "dtype": dtype}
-        super().__init__()
         self.residual_in_fp32 = residual_in_fp32
         if not ignore_input_ids:
             self.embedding = nn.Embedding(vocab_size, d_model, **factory_kwargs)
