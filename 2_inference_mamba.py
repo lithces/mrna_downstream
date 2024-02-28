@@ -59,43 +59,27 @@ class BatchSeqDataset(LocalDataset):
         }
 
 
-class EmbedSeqDataset(LocalDataset):
-    def __init__(self, local, ctx_size):
-        '''
-        resulting tensors are padded to ctx_size
-        '''
-        super().__init__(local=local)
-        self.ctx_size = ctx_size
-
-
-    def __getitem__(self, index: int):
-        obj = super().__getitem__(index)
-        embs = obj['embs']
-        L,D = embs.shape
-        pos1 = min(L, self.ctx_size)
-        padded_emb = np.concatenate( (embs[:pos1], np.zeros( ( (self.ctx_size - pos1),D), dtype=np.float16)))
-        
-        return {'embs': padded_emb
-        }
 
 
 #%%
 import tqdm
 ds_train_base = BatchSeqDataset('./mds/tr', ctx_size=ctx_size)
-ds_train_emb = EmbedSeqDataset('./mds_emb_mamba/tr', ctx_size=ctx_size)
 
-ds_val_base = BatchSeqDataset('./mds/te', ctx_size=ctx_size)
-ds_val_emb = EmbedSeqDataset('./mds_emb_mamba/te', ctx_size=ctx_size)
+# ds_val_base = BatchSeqDataset('./mds/te', ctx_size=ctx_size)
+# ds_val_emb = EmbedSeqDataset('./mds_emb_mamba/te', ctx_size=ctx_size)
 
-ds_train = StackDataset(ds_train_base, ds_train_emb)
-ds_val = StackDataset(ds_val_base, ds_val_emb)
+ds_val_base = BatchSeqDataset('./mds/va', ctx_size=ctx_size)
+
+
+ds_train = ds_train_base
+ds_val = ds_val_base
 
 dl_debug = DataLoader(ds_train, shuffle=True, batch_size=256)
 
 for di in tqdm.tqdm(dl_debug):
-    print(di[1]['embs'].dtype)
-    print(di[1]['embs'].shape)
-    input_emb_dim = di[1]['embs'].shape[-1]
+    print(di['ids'].dtype)
+    print(di['ids'].shape)
+    input_emb_dim = di['ids'].shape[-1]
     break
     # pass
 # %%
@@ -105,33 +89,32 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 # import pytorch_lightning as pl
 import lightning.pytorch as pl
-from mymamba_with_emb_input import *
+from mymamba import *
 #%%
 
 
 
 
 
-dl_train = DataLoader(ds_train, shuffle=True, batch_size=batch_size)
 dl_val = DataLoader(ds_val, shuffle=False, batch_size=batch_size)
-model = MambaSingleOutputModelWithEmbeddingInput(vocab_sz, output_dim, hidden_dim, num_layers, input_emb_dim, ignore_input_ids=ignore_input_ids, \
-        dropout_rate=dropout, comments=comments, lr=lr, opt=opt)
 
+
+
+# model = MambaSingleOutputModelWithEmbeddingInput(vocab_sz, output_dim, hidden_dim, num_layers, input_emb_dim, ignore_input_ids=ignore_input_ids\
+#                                                  , dropout_rate=dropout, comments=comments, lr=lr, opt=opt)
+
+
+model = MambaSingleOutputModel.load_from_checkpoint("mlartifacts/272198156627528882/8717688ec0a346d087ef5060593fcf00/artifacts/model/checkpoints/epoch=119-step=5247/epoch=119-step=5247.ckpt")
+trainer = pl.Trainer()
 
 #%%
-from lightning.pytorch.loggers import TensorBoardLogger
-# from lightning.pytorch.loggers import WandbLogger
-# wandb_logger = WandbLogger(project="mamba_mrna_downstream_with_embs")
+output = trainer.predict(model, dl_val)
+# %%
+output = torch.concat(output)
+y = torch.concat([t['hl'] for t in dl_val])
+# %%
+from scipy.stats import pearsonr
+corr, _ = pearsonr(y.cpu().numpy(), output.cpu().numpy())
+print(corr)
 
-# logger = TensorBoardLogger(save_dir='training_log_mamba')
-
-
-from lightning.pytorch.callbacks import ModelCheckpoint
-checkpoint_callback = ModelCheckpoint(monitor="val_loss", \
-    save_top_k=3, \
-    mode="min",)
-trainer = pl.Trainer(max_epochs=max_epochs, log_every_n_steps=5, val_check_interval=0.25, callbacks=[checkpoint_callback])
-# trainer = pl.Trainer(max_epochs=max_epochs, log_every_n_steps=5, val_check_interval=0.25)
-
-trainer.fit(model, dl_train, dl_val)
 # %%

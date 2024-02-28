@@ -24,7 +24,7 @@ lightning*/*
 *.csv
 *.xlsx
 *.joblib
-
+    
 
 mds*
 lightning*
@@ -38,3 +38,6 @@ training_log*/*
 *.gz
 *.zip
 *.7z
+
+mlruns
+mlartifacts

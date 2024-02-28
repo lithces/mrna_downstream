@@ -11,7 +11,7 @@ import math
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch import nn, Tensor
 
@@ -34,7 +34,7 @@ class MambaSingleOutputModel(pl.LightningModule, GenerationMixin):
 
     def __init__(
         self,
-        vocab_sz, output_dim, hidden_dim, num_layers, dropout_rate = None, comments="", lr=1e-3, opt="Adam"
+        vocab_sz, output_dim, hidden_dim, num_layers, dropout_rate = None, output_agg = 'avg', comments="", lr=1e-3, opt="Adam"
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
@@ -54,7 +54,7 @@ class MambaSingleOutputModel(pl.LightningModule, GenerationMixin):
         self.opt = opt
         self.comments = comments
 
-
+        self.output_agg = output_agg
         # if vocab_size % pad_vocab_size_multiple != 0:
         #     vocab_size += pad_vocab_size_multiple - (vocab_size % pad_vocab_size_multiple)
         self.backbone = MixerModel(
@@ -100,8 +100,13 @@ class MambaSingleOutputModel(pl.LightningModule, GenerationMixin):
 
         output = output[:,:,0]
         keep_ind = (~src_key_padding_mask).to(torch.float)
-        output = (output*keep_ind).sum(dim=-1) / keep_ind.sum(dim=-1) # average over time
-
+        if self.output_agg=='avg':
+            output = (output*keep_ind).sum(dim=-1) / keep_ind.sum(dim=-1) # average over time
+        elif self.output_agg=='sum':
+            output = (output*keep_ind).sum(dim=-1)
+        elif self.output_agg=='last':
+            pos = src_key_padding_mask.int().argmax(dim=1)
+            output = output[torch.arange(output.size(0)), pos]
         return output
 
     
@@ -130,3 +135,7 @@ class MambaSingleOutputModel(pl.LightningModule, GenerationMixin):
             optimizer = optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
     
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        src, tgt, mask = batch['ids'], batch['hl'], batch['mask']
+        output = self(src, mask)
+        return output

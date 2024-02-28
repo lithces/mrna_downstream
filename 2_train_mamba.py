@@ -2,13 +2,14 @@
 vocab_sz = 140
 padding_idx = 139
 output_dim = 1
-hidden_dim = 64
-num_layers = 3
+hidden_dim = 16
+num_layers = 1
 batch_size = 256
 max_epochs = 200
 dropout = None
-ctx_size = 4096 
-comments = f"ctx_size: {ctx_size}" # default 4096
+ctx_size = 1024*8 
+output_agg = 'avg'
+comments = f"ctx_size: {ctx_size}, hidden_dim: {hidden_dim}, output_agg: {output_agg}, layers: {num_layers}, batchsize: {batch_size}" # default 4096
 
 lr = 1e-4 # default 1e-3
 opt = 'AdamW' # default Adam
@@ -74,8 +75,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
-import pytorch_lightning as pl
-
+import lightning.pytorch as pl
 from mymamba import *
 #%%
 
@@ -85,11 +85,22 @@ from mymamba import *
 
 dl_train = DataLoader(ds_train, shuffle=True, batch_size=batch_size)
 dl_val = DataLoader(ds_val, shuffle=False, batch_size=batch_size)
+model = MambaSingleOutputModel(vocab_sz, output_dim, hidden_dim, num_layers, dropout_rate=dropout, output_agg=output_agg, comments=comments, lr=lr, opt=opt)
 
-# from lightning.pytorch.loggers import TensorBoardLogger
-# logger = TensorBoardLogger(save_dir='training_log_mamba')
+#%%
+from lightning.pytorch.loggers import TensorBoardLogger, MLFlowLogger
+tf_logger = TensorBoardLogger(save_dir='training_logs_mamba')
 
-model = MambaSingleOutputModel(vocab_sz, output_dim, hidden_dim, num_layers, dropout_rate=dropout, comments=comments, lr=lr, opt=opt)
-trainer = pl.Trainer(max_epochs=max_epochs, log_every_n_steps=5, val_check_interval=0.25,)
+
+# mlf_logger = MLFlowLogger(experiment_name="lightning_logs_mamba", tracking_uri="file:./ml-runs", run_name=comments)
+mlf_logger = MLFlowLogger(experiment_name="lightning_logs_mamba", tracking_uri="http://127.0.0.1:5000", run_name=comments, log_model=True)
+
+
+from lightning.pytorch.callbacks import ModelCheckpoint
+checkpoint_callback = ModelCheckpoint(monitor="val_loss", \
+    save_top_k=3, \
+    mode="min",)
+trainer = pl.Trainer(max_epochs=max_epochs, log_every_n_steps=5, val_check_interval=0.25, callbacks=[checkpoint_callback], logger=[mlf_logger, tf_logger])
+
 trainer.fit(model, dl_train, dl_val)
 # %%

@@ -48,22 +48,64 @@ class MixerModelWithEmbeddingInput(MixerModel):
         dtype=None,
         ignore_input_ids=False
     ) -> None:
-        super().__init__(d_model,
-            n_layer,
-            vocab_size,
-            ssm_cfg,
-            norm_epsilon,
-            rms_norm,
-            initializer_cfg,
-            fused_add_norm,
-            residual_in_fp32,
-            device,
-            dtype,
-        )
+        # super().__init__(d_model,
+        #     n_layer,
+        #     vocab_size,
+        #     ssm_cfg,
+        #     norm_epsilon,
+        #     rms_norm,
+        #     initializer_cfg,
+        #     fused_add_norm,
+        #     residual_in_fp32,
+        #     device,
+        #     dtype,
+        # )
+        # if ignore_input_ids:
+        #     del self.embedding
 
         self.ignore_input_ids = ignore_input_ids            
-        if ignore_input_ids:
-            del self.embedding
+        factory_kwargs = {"device": device, "dtype": dtype}
+        self.residual_in_fp32 = residual_in_fp32
+        if not ignore_input_ids:
+            self.embedding = nn.Embedding(vocab_size, d_model, **factory_kwargs)
+
+        # We change the order of residual and layer norm:
+        # Instead of LN -> Attn / MLP -> Add, we do:
+        # Add -> LN -> Attn / MLP / Mixer, returning both the residual branch (output of Add) and
+        # the main branch (output of MLP / Mixer). The model definition is unchanged.
+        # This is for performance reason: we can fuse add + layer_norm.
+        self.fused_add_norm = fused_add_norm
+        if self.fused_add_norm:
+            if layer_norm_fn is None or rms_norm_fn is None:
+                raise ImportError("Failed to import Triton LayerNorm / RMSNorm kernels")
+
+        self.layers = nn.ModuleList(
+            [
+                create_block(
+                    d_model,
+                    ssm_cfg=ssm_cfg,
+                    norm_epsilon=norm_epsilon,
+                    rms_norm=rms_norm,
+                    residual_in_fp32=residual_in_fp32,
+                    fused_add_norm=fused_add_norm,
+                    layer_idx=i,
+                    **factory_kwargs,
+                )
+                for i in range(n_layer)
+            ]
+        )
+
+        self.norm_f = (nn.LayerNorm if not rms_norm else RMSNorm)(
+            d_model, eps=norm_epsilon, **factory_kwargs
+        )
+
+        self.apply(
+            partial(
+                _init_weights,
+                n_layer=n_layer,
+                **(initializer_cfg if initializer_cfg is not None else {}),
+            )
+        )
 
 
     def forward(self, input_ids, embs, inference_params=None):
@@ -100,7 +142,7 @@ class MambaSingleOutputModelWithEmbeddingInput(pl.LightningModule, GenerationMix
 
     def __init__(
         self,
-        vocab_sz, output_dim, hidden_dim, num_layers, input_emb_dim, ignore_input_ids = False, dropout_rate = None,  comments="", lr=1e-3, opt="Adam"
+        vocab_sz, output_dim, hidden_dim, num_layers, input_emb_dim, ignore_input_ids = False, dropout_rate = None, output_agg = 'avg', comments="", lr=1e-3, opt="Adam"
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
@@ -148,7 +190,7 @@ class MambaSingleOutputModelWithEmbeddingInput(pl.LightningModule, GenerationMix
                 **(initializer_cfg if initializer_cfg is not None else {}),
             )
         )
-
+        self.output_agg = output_agg
         self.loss = nn.MSELoss()
     def allocate_inference_cache(self, batch_size, max_seqlen, dtype=None, **kwargs):
         return self.backbone.allocate_inference_cache(batch_size, max_seqlen, dtype=dtype, **kwargs)
@@ -166,8 +208,10 @@ class MambaSingleOutputModelWithEmbeddingInput(pl.LightningModule, GenerationMix
 
         output = output[:,:,0]
         keep_ind = (~src_key_padding_mask).to(torch.float)
-        output = (output*keep_ind).sum(dim=-1) / keep_ind.sum(dim=-1) # average over time
-
+        if self.output_agg=='avg':
+            output = (output*keep_ind).sum(dim=-1) / keep_ind.sum(dim=-1) # average over time
+        if self.output_agg=='sum':
+            output = (output*keep_ind).sum(dim=-1)
         return output
 
     
@@ -195,3 +239,9 @@ class MambaSingleOutputModelWithEmbeddingInput(pl.LightningModule, GenerationMix
         else:
             optimizer = optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
+    
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        print(batch)
+        src, tgt, mask, embs = batch[0]['ids'], batch[0]['hl'], batch[0]['mask'], batch[1]['embs']
+        output = self(src, embs, mask)
+        return output
